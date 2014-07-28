@@ -149,48 +149,54 @@
     [(process_ [i c board]
        (if (check board)
          (do
-           (println "process_ = " i (card-string c))
+;           (println "process_ = " i (card-string c))
            (let [new-board (assoc board i c)]
-             (print-board new-board)
+;             (print-board new-board)
              (if (check new-board)
                (if (finished? new-board)
                  ; クリア！！
                  (do
                    (println "Finished!!")
                    (print-board new-board)
-                   (System/exit 0))
+;                   (System/exit 0)
+                   false
+                   )
                  ; 次に何も置かれてない場所から
                  (let [i (first (first (filter #(nil? (second %)) (map-indexed list new-board))))
                        r (do
-                           (println "callingC process__" i)
+;                           (println "callingC process__" i)
                            (process__ i new-board))]
-                   (println "C" r)
+;                   (println "C" r)
                    r))
                (do
-                 (println "Check Error")
+;                 (println "Check Error")
                  false))))
          false))
      ; ある場所にすべてのカードを置いてみる
      (process__ [i board]
        (if (nil? (board i))
          (do
-           (println "process__ = " i (available-cards i board))
-           (let [r (some #(do (println "callingB process_" i %) (process_ i % board)) (available-cards i board))]
-             (println "B" r)
+;           (println "process__ = " i (available-cards i board))
+           (let [r (some #(do
+;                            (println "callingB process_" i %)
+                            (process_ i % board))
+                     (available-cards i board))]
+;             (println "B" r)
              r))
          false))]
     ; 最初に何も置かれてない場所から始める
     (let [i (first (first (filter #(nil? (second %)) (map-indexed list initial-board))))
           r (do
-              (println "callingA process__" i)
+;              (println "callingA process__" i)
               (process__ i board))]
-      (println "A" r)
+;      (println "A" r)
       r)))
 
 (defn -main
   "Kuina-chan Sudoku"
   []
   (let [answer (process initial-board)]
-    (println "answer = ")
-    (print-board answer)
-    (println (check answer))))
+;    (println "answer = ")
+;    (print-board answer)
+;    (println (check answer))
+    ))
