@@ -40,43 +40,68 @@
   [board]
   (println (board-string board)))
 
+(defn get-card-group
+  "横・縦・大枠内にあるカードをgroup-funcで分類する"
+  [index-func group-func board]
+  (->>
+    board
+    (map-indexed (comp vec list))
+    (map (fn [[x y]] [(index-func x y) y]))
+    (filter (fn [x] (not (nil? (second x)))))
+    (group-by group-func)))
+
+(defn get-rows-index
+  "横方向のインデックス"
+  ([x]
+    (get-rows-index x 0))
+  ([x y]
+    (quot x 13)))
+
+(defn get-columns-index
+  "縦方向のインデックス"
+  ([x]
+    (get-columns-index x 0))
+  ([x y]
+    (mod x 13)))
+
+(defn get-boxes-index
+  "大枠内のインデックス"
+  ([x]
+    (get-boxes-index x 0))
+  ([x y]
+    (quot (mod x 13) 3)))
+
 (defn check
   "盤面の状態が正しいかチェックする"
   [board]
-  ; 同じカードを使っていたらダメ
-  (if (->>
-        board
-        (filter #(not (nil? %)))
-        (group-by card-string)
-        (filter #(> (count (second %)) 1))
-        (not-empty))
-    false
-    (let [board_ (map-indexed (comp vec list) board)]
+  (letfn [(check_ [col]
+            (->>
+              col
+              (filter #(> (count (second %)) 1))
+              (not-empty)))]
+    ; 同じカードを使っていたらダメ
+    (if (->>
+          board
+          (filter #(not (nil? %)))
+          (group-by card-string)
+          (check_))
+      false
       (if (or
             ; 横に同じ数字があってはならない
             (->>
-              board_
-              (map (fn [[x y]] [(quot x 13) y]))
-              (filter #(not (nil? (second %))))
-              (group-by (fn [[x y]] [x (:number y)]))
-              (filter #(> (count (second %)) 1))
-              (not-empty))
+              board
+              (get-card-group get-rows-index (fn [[x y]] [x (:number y)]))
+              (check_))
             ; 縦に同じマークがあってはならない
             (->>
-              board_
-              (map (fn [[x y]] [(mod x 13) y]))
-              (filter #(not (nil? (second %))))
-              (group-by (fn [[x y]] [x (:suite y)]))
-              (filter #(> (count (second %)) 1))
-              (not-empty))
+              board
+              (get-card-group get-columns-index (fn [[x y]] [x (:suite y)]))
+              (check_))
             ; 太枠内に同じ数字があってはならない
             (->>
-              board_
-              (map (fn [[x y]] [(quot (mod x 13) 3) y]))
-              (filter #(not (nil? (second %))))
-              (group-by (fn [[x y]] [x (:number y)]))
-              (filter #(> (count (second %)) 1))
-              (not-empty)))
+              board
+              (get-card-group get-boxes-index (fn [[x y]] [x (:number y)]))
+              (check_)))
         false
         true))))
 
@@ -87,58 +112,34 @@
 
 (defn available-cards
   "使用できるカード(未使用のカード)を返す"
-  ; 全てのカードから使われているカードを除く
-  ([board]
-    (difference
-      all-cards
-      (->>
-        board
-        (filter #(not (nil? %)))
-        (set))))
-  ; 置こうとしている場所から使用できるカードを判断する
-  ([i board]
-    (let [suites #{:spade :heart :diamond :club}
-          numbers (set (range 1 (inc 13)))
-          c (board i)
-          suite (:suite c)
-          number (:number c)]
-      ; 横にある数字を排除
-      (let [numbers_ (difference numbers
-                       (set
-                         (->>
-                           ((->>
-                              initial-board
-                              (map-indexed (comp vec list))
-                              (map (fn [[x y]] [(quot x 13) y]))
-                              (filter #(not (nil? (second %))))
-                              (group-by (fn [[x y]] x))) (quot i 13))
-                           (map #(:number (second %))))))]
-        ; 縦にあるマークを排除
-        (let [suites_ (difference suites
-                        (set
-                          (->>
-                            ((->>
-                               initial-board
-                               (map-indexed (comp vec list))
-                               (map (fn [[x y]] [(mod x 13) y]))
-                               (filter #(not (nil? (second %))))
-                               (group-by (fn [[x y]] x))) (mod i 13))
-                            (map #(:suite (second %))))))]
-          ; 大枠内の数字を排除
-          (let [numbers__ (difference (set numbers_)
-                            (set
-                              (->>
-                                ((->>
-                                   initial-board
-                                   (map-indexed (comp vec list))
-                                   (map (fn [[x y]] [(quot (mod x 13) 3) y]))
-                                   (filter #(not (nil? (second %))))
-                                   (group-by (fn [[x y]] x))) (quot (mod i 13) 3))
-                                (map #(:number (second %))))))]
-            ; 結果から盤面上のカードを除く
-            (difference (set (for [s suites_ n numbers__]
-                               (->Card s n)))
-              board)))))))
+  [i board]
+  (let [suites #{:spade :heart :diamond :club}
+        numbers (set (range 1 (inc 13)))
+        c (board i)
+        suite (:suite c)
+        number (:number c)]
+    ; 横にある数字を排除
+    (let [numbers_ (difference numbers
+                     (set
+                       (->>
+                         ((get-card-group get-rows-index (fn [[x y]] x) board) get-rows-index)
+                         (map #(:number (second %))))))]
+      ; 縦にあるマークを排除
+      (let [suites_ (difference suites
+                      (set
+                        (->>
+                          ((get-card-group get-columns-index (fn [[x y]] x) board) get-columns-index)
+                          (map #(:suite (second %))))))]
+        ; 大枠内の数字を排除
+        (let [numbers__ (difference (set numbers_)
+                          (set
+                            (->>
+                              ((get-card-group get-boxes-index (fn [[x y]] x) board) get-boxes-index)
+                              (map #(:number (second %))))))]
+          ; 結果から盤面上のカードを除く
+          (difference (set (for [s suites_ n numbers__]
+                             (->Card s n)))
+            board))))))
 
 (defn process
   "総当たり"
